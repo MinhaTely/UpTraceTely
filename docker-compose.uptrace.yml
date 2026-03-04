@@ -16,8 +16,8 @@ services:
         protocol: tcp
         mode: ingress
     volumes:
-      - ./configs/uptrace.yml.template:/etc/uptrace/config.yml.template:ro  # ADDED
-      - ./scripts/uptrace-entrypoint.sh:/entrypoint-custom.sh:ro  # ADDED
+      - ./configs/uptrace.yml.template:/etc/uptrace/config.yml.template:ro
+      - ./scripts/uptrace-entrypoint.sh:/entrypoint-custom.sh:ro
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -28,12 +28,12 @@ services:
       UPTRACE_PG_PASSWORD: ${UPTRACE_PG_PASSWORD}
       UPTRACE_PG_DATABASE: ${UPTRACE_PG_DATABASE}
       UPTRACE_CH_ADDR: ${UPTRACE_CH_ADDR}
-      UPTRACE_CH_USER: ${UPTRACE_CH_USER:-default}
+      UPTRACE_CH_USER: ${UPTRACE_CH_USER}
       UPTRACE_CH_PASSWORD: ${UPTRACE_CLICKHOUSE_PASSWORD}
       UPTRACE_CH_DATABASE: ${UPTRACE_CH_DATABASE}
-      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      REDIS_ADDR: ${REDIS_ADDR}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      UPTRACE_SITE_URL: ${UPTRACE_SITE_URL:-http://172.16.212.26:14318}
+      UPTRACE_SITE_URL: ${UPTRACE_SITE_URL}
       UPTRACE_ADMIN_EMAIL: ${UPTRACE_ADMIN_EMAIL}
       UPTRACE_ADMIN_PASSWORD: ${UPTRACE_ADMIN_PASSWORD}
     entrypoint: ["/bin/sh", "/entrypoint-custom.sh"]
@@ -76,8 +76,8 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     environment:
-      CLICKHOUSE_DB: ${UPTRACE_CH_DATABASE:-uptrace}
-      CLICKHOUSE_USER: ${UPTRACE_CH_USER:-default}
+      CLICKHOUSE_DB: ${UPTRACE_CH_DATABASE}
+      CLICKHOUSE_USER: ${UPTRACE_CH_USER}
       CLICKHOUSE_PASSWORD: ${UPTRACE_CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
