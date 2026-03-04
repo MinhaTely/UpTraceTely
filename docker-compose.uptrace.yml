@@ -16,11 +16,10 @@ services:
         protocol: tcp
         mode: ingress
     volumes:
-      - ./configs/uptrace.yml.template:/etc/uptrace/config.yml.template:ro
-      - ./scripts/uptrace-entrypoint.sh:/entrypoint-custom.sh:ro
+      - ./uptrace.yml.template:/etc/uptrace/config.yml.template:ro
+      - ./uptrace-entrypoint.sh:/entrypoint-custom.sh:ro
     depends_on:
-      clickhouse:
-        condition: service_healthy
+     - clickhouse
     environment:
       UPTRACE_SECRET: ${UPTRACE_SECRET}
       UPTRACE_PG_ADDR: ${UPTRACE_PG_ADDR}
