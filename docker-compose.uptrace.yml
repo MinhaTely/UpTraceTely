@@ -62,11 +62,11 @@ services:
           cpus: "0.5"
           memory: 512M
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:443/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 60s
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "--timeout=3", "http://localhost:443/"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
 
   # ======================
   # CLICKHOUSE (Uptrace Storage) - Staging
@@ -238,7 +238,7 @@ services:
           docker service update \
             --with-registry-auth \
             --image $${DOCKERHUB_USERNAME}/uptrace-tely:staging \
-            uptrace-tely-stag_uptrace >/dev/null 2>&1 || true
+            tely-uptrace-stag_uptrace >/dev/null 2>&1 || true
 
           echo "😴 Aguardando 5 minutos..."
           sleep 300
