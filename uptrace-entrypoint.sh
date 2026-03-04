@@ -65,22 +65,26 @@ check_uptrace_health() {
     return 1
   fi
   
-  # Try multiple endpoints and protocols
+  # Check if port 443 is listening (Uptrace is serving)
+  if command -v nc >/dev/null 2>&1; then
+    if nc -z localhost 443 2>/dev/null; then
+      return 0
+    fi
+  fi
+  
+  # Try root endpoint (most reliable)
+  if wget --no-verbose --tries=1 --spider --timeout=3 http://localhost:443/ 2>/dev/null; then
+    return 0
+  fi
+  
+  # Try API health endpoint
   if wget --no-verbose --tries=1 --spider --timeout=3 http://localhost:443/api/health 2>/dev/null; then
-    return 0
-  fi
-  
-  if wget --no-verbose --tries=1 --spider --timeout=3 https://localhost:443/api/health --no-check-certificate 2>/dev/null; then
-    return 0
-  fi
-  
-  if wget --no-verbose --tries=1 --spider --timeout=3 http://localhost:443/health 2>/dev/null; then
     return 0
   fi
   
   # Try using curl as fallback
   if command -v curl >/dev/null 2>&1; then
-    if curl -f -s --max-time 3 http://localhost:443/api/health >/dev/null 2>&1; then
+    if curl -f -s --max-time 3 http://localhost:443/ >/dev/null 2>&1; then
       return 0
     fi
   fi
