@@ -4,7 +4,7 @@ services:
   # ======================
   # POSTGRESQL (Uptrace Metadata) - Staging
   # ======================
-  db:
+  uptrace-db:
     image: postgres:16-alpine
     environment:
       # SECURITY: All sensitive values come from .env file
@@ -48,7 +48,7 @@ services:
   # ======================
   # REDIS (Uptrace Cache) - Staging
   # ======================
-  redis:
+  uptrace-redis:
     image: redis:7-alpine
     command: >
       sh -c "
