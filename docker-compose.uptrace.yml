@@ -226,7 +226,23 @@ services:
     command:
       - /bin/sh
       - -c
-      - echo "$$DOCKERHUB_TOKEN" | docker login -u "$$DOCKERHUB_USERNAME" --password-stdin >/dev/null 2>&1 || true; echo '✅ Credenciais do Docker configuradas'; while true; do echo '🔄 Atualizando serviços...' && docker service update --with-registry-auth --image $${DOCKERHUB_USERNAME}/uptrace-tely:staging uptrace-tely-stag_uptrace 2>/dev/null || echo 'Erro ao atualizar uptrace' && echo '😴 Aguardando 5 minutos...' && sleep 300; done
+      - |
+        echo "$$DOCKERHUB_TOKEN" | docker login -u "$$DOCKERHUB_USERNAME" --password-stdin >/dev/null 2>&1
+        echo "✅ Credenciais do Docker configuradas"
+
+        while true; do
+          echo "🔄 Verificando nova imagem..."
+
+          docker pull $${DOCKERHUB_USERNAME}/uptrace-tely:staging >/dev/null 2>&1
+
+          docker service update \
+            --with-registry-auth \
+            --image $${DOCKERHUB_USERNAME}/uptrace-tely:staging \
+            uptrace-tely-stag_uptrace >/dev/null 2>&1 || true
+
+          echo "😴 Aguardando 5 minutos..."
+          sleep 300
+        done
     networks:
       - stag_network
     deploy:
