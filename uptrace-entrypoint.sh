@@ -54,22 +54,56 @@ UPTRACE_PID=$!
 
 # Wait for Uptrace to be ready (check health endpoint)
 echo "⏳ Waiting for Uptrace to be ready..."
-MAX_RETRIES=30
+MAX_RETRIES=60
 RETRY_COUNT=0
 UPTRACE_READY=0
+
+# Function to check if Uptrace is responding
+check_uptrace_health() {
+  # Check if process is still running
+  if ! kill -0 $UPTRACE_PID 2>/dev/null; then
+    return 1
+  fi
+  
+  # Try multiple endpoints and protocols
+  if wget --no-verbose --tries=1 --spider --timeout=3 http://localhost:443/api/health 2>/dev/null; then
+    return 0
+  fi
+  
+  if wget --no-verbose --tries=1 --spider --timeout=3 https://localhost:443/api/health --no-check-certificate 2>/dev/null; then
+    return 0
+  fi
+  
+  if wget --no-verbose --tries=1 --spider --timeout=3 http://localhost:443/health 2>/dev/null; then
+    return 0
+  fi
+  
+  # Try using curl as fallback
+  if command -v curl >/dev/null 2>&1; then
+    if curl -f -s --max-time 3 http://localhost:443/api/health >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+  
+  return 1
+}
+
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  if wget --no-verbose --tries=1 --spider http://localhost:443/api/health 2>/dev/null; then
+  if check_uptrace_health; then
     echo "✅ Uptrace is ready"
     UPTRACE_READY=1
     break
   fi
   RETRY_COUNT=$((RETRY_COUNT + 1))
-  echo "  Attempt $RETRY_COUNT/$MAX_RETRIES..."
+  if [ $((RETRY_COUNT % 5)) -eq 0 ]; then
+    echo "  Attempt $RETRY_COUNT/$MAX_RETRIES... (process still running)"
+  fi
   sleep 2
 done
 
 if [ $UPTRACE_READY -eq 0 ]; then
-  echo "⚠️  Warning: Uptrace health check did not pass, but continuing anyway..."
+  echo "⚠️  Warning: Uptrace health check did not pass after $MAX_RETRIES attempts, but continuing anyway..."
+  echo "   The service may still be starting up. User creation will be retried."
 fi
 
 # Create admin user if environment variables are provided
