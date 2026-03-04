@@ -5,7 +5,7 @@ services:
   # UPTRACE APM (OpenTelemetry) - Staging (HA)
   # ======================
   uptrace:
-    image: ${DOCKERHUB_USERNAME}/uptrace-tely:staging
+    image: augustomello/uptrace-tely:staging
     ports:
       - target: 443
         published: 14318
