@@ -83,12 +83,12 @@ services:
     networks:
       - stag_network
     deploy:
-      replicas: 1  # FIXED: Changed from 2 (needs cluster for 2+)
+      replicas: 1
       placement:
         constraints:
           - node.role == manager
         preferences:
-          - spread: node.id  # ADDED: For future HA
+          - spread: node.id
       update_config:
         parallelism: 1
         delay: 30s
@@ -119,7 +119,6 @@ services:
   uptrace-db:
     image: postgres:16-alpine
     environment:
-      # SECURITY: All sensitive values come from .env file
       POSTGRES_DB: ${UPTRACE_PG_DATABASE}
       POSTGRES_USER: ${UPTRACE_PG_USER}
       POSTGRES_PASSWORD: ${UPTRACE_PG_PASSWORD}
@@ -171,8 +170,7 @@ services:
       fi
       "
     environment:
-      # SECURITY: All sensitive values come from .env file
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - uptrace_redis_stag_data:/data
     networks:
