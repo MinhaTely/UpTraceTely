@@ -227,11 +227,11 @@ services:
       /bin/sh -c "
       # Configure daemon credentials (only if not already configured)
       if [ ! -f /root/.docker/config.json ] || ! grep -q \"docker.io\" /root/.docker/config.json 2>/dev/null; then
-        echo \"$$DOCKERHUB_TOKEN\" | docker login -u \"$$DOCKERHUB_USERNAME\" --password-stdin 2>&1 | grep -v 'WARNING' || true
+        echo \"$$DOCKERHUB_TOKEN\" | docker login -u \"$$DOCKERHUB_USERNAME\" --password-stdin >/dev/null 2>&1 || true
         echo '✅ Credenciais do Docker daemon configuradas'
       else
         echo '✅ Credenciais do Docker daemon já configuradas'
-      fi &&
+      fi;
       while true; do
         echo '🔄 Atualizando serviços...' &&
         docker service update --with-registry-auth --image $${DOCKERHUB_USERNAME}/uptrace-tely:staging uptrace-tely-stag_uptrace 2>/dev/null || echo 'Erro ao atualizar uptrace' &&
