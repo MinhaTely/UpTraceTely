@@ -1,0 +1,124 @@
+version: "3.8"
+
+services:
+  # ======================
+  # POSTGRESQL (Uptrace Metadata) - Staging
+  # ======================
+  db:
+    image: postgres:16-alpine
+    environment:
+      # SECURITY: All sensitive values come from .env file
+      POSTGRES_DB: ${UPTRACE_PG_DATABASE:-uptrace}
+      POSTGRES_USER: ${UPTRACE_PG_USER:-uptrace}
+      POSTGRES_PASSWORD: ${UPTRACE_PG_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    volumes:
+      - uptrace_pg_stag_data:/var/lib/postgresql/data
+    networks:
+      - stag_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${UPTRACE_PG_USER:-uptrace} -d ${UPTRACE_PG_DATABASE:-uptrace}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ======================
+  # REDIS (Uptrace Cache) - Staging
+  # ======================
+  redis:
+    image: redis:7-alpine
+    command: >
+      sh -c "
+      if [ -n \"$$REDIS_PASSWORD\" ]; then
+        redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes
+      else
+        redis-server --appendonly yes
+      fi
+      "
+    environment:
+      # SECURITY: All sensitive values come from .env file
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - uptrace_redis_stag_data:/data
+    networks:
+      - stag_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+    healthcheck:
+      test: >
+        sh -c "
+        if [ -n \"$$REDIS_PASSWORD\" ]; then
+          redis-cli -a \"$$REDIS_PASSWORD\" ping
+        else
+          redis-cli ping
+        fi
+        "
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  uptrace_pg_stag_data:
+    driver: local
+    # For multi-node HA, use shared storage:
+    # driver: nfs
+    # driver_opts:
+    #   share: "172.16.212.26:/data/uptrace-postgres"
+    #   o: "addr=172.16.212.26,vers=4"
+
+  uptrace_redis_stag_data:
+    driver: local
+    # For multi-node HA, use shared storage:
+    # driver: nfs
+    # driver_opts:
+    #   share: "172.16.212.26:/data/uptrace-redis"
+    #   o: "addr=172.16.212.26,vers=4"
+
+networks:
+  stag_network:
+    external: true
+    name: tely-vendas-db-stag_stag_network  # Match other stacks
