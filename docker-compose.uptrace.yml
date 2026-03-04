@@ -218,18 +218,20 @@ services:
     image: docker:25-cli
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/tmp
-      - /root/.docker
+      - /root/.docker:/root/.docker:rw  # Mount daemon's docker config
+    read_only: false  # Need write access to configure daemon
     environment:
       DOCKERHUB_USERNAME: ${DOCKERHUB_USERNAME}
       DOCKERHUB_TOKEN: ${DOCKERHUB_TOKEN}
     command: >
       /bin/sh -c "
-      echo \"$$DOCKERHUB_TOKEN\" | docker login -u \"$$DOCKERHUB_USERNAME\" --password-stdin 2>&1 | grep -v 'WARNING' || true &&
-      echo '✅ Logado no Docker Hub' &&
+      # Configure daemon credentials (only if not already configured)
+      if [ ! -f /root/.docker/config.json ] || ! grep -q \"docker.io\" /root/.docker/config.json 2>/dev/null; then
+        echo \"$$DOCKERHUB_TOKEN\" | docker login -u \"$$DOCKERHUB_USERNAME\" --password-stdin 2>&1 | grep -v 'WARNING' || true
+        echo '✅ Credenciais do Docker daemon configuradas'
+      else
+        echo '✅ Credenciais do Docker daemon já configuradas'
+      fi &&
       while true; do
         echo '🔄 Atualizando serviços...' &&
         docker service update --with-registry-auth --image $${DOCKERHUB_USERNAME}/uptrace-tely:staging uptrace-tely-stag_uptrace 2>/dev/null || echo 'Erro ao atualizar uptrace' &&
