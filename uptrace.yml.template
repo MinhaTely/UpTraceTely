@@ -1,0 +1,24 @@
+service:
+  secret: ${UPTRACE_SECRET}
+
+site:
+  url: ${UPTRACE_SITE_URL}
+
+pg:
+  addr: ${UPTRACE_PG_ADDR}
+  user: ${UPTRACE_PG_USER}
+  password: ${UPTRACE_PG_PASSWORD}
+  database: ${UPTRACE_PG_DATABASE}
+
+ch_cluster:
+  shards:
+    - replicas:
+        - addr: ${UPTRACE_CH_ADDR}
+          user: ${UPTRACE_CH_USER}
+          password: ${UPTRACE_CH_PASSWORD}
+          database: ${UPTRACE_CH_DATABASE}
+
+redis_cache:
+  addrs:
+    alpha: ${REDIS_ADDR}
+  password: "${REDIS_PASSWORD}"

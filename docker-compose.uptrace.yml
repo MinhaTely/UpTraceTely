@@ -1,0 +1,175 @@
+version: "3.8"
+
+services:
+  # ======================
+  # UPTRACE APM (OpenTelemetry) - Staging (HA)
+  # ======================
+  uptrace:
+    image: ${DOCKERHUB_USERNAME}/uptrace-tely:staging
+    ports:
+      - target: 443
+        published: 14318
+        protocol: tcp
+        mode: ingress
+      - target: 4317
+        published: 4317
+        protocol: tcp
+        mode: ingress
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      # SECURITY: All sensitive values come from .env file
+      UPTRACE_SECRET: ${UPTRACE_SECRET}
+
+      # PostgreSQL Connection (uses db service from docker-compose.stag.infra.yml)
+      UPTRACE_PG_ADDR: ${UPTRACE_PG_ADDR}
+      UPTRACE_PG_USER: ${UPTRACE_PG_USER}
+      UPTRACE_PG_PASSWORD: ${UPTRACE_PG_PASSWORD}
+      UPTRACE_PG_DATABASE: ${UPTRACE_PG_DATABASE}
+
+      # ClickHouse Connection
+      UPTRACE_CH_ADDR: ${UPTRACE_CH_ADDR}
+      UPTRACE_CH_USER: ${UPTRACE_CH_USER:-default}
+      UPTRACE_CH_PASSWORD: ${UPTRACE_CLICKHOUSE_PASSWORD}
+      UPTRACE_CH_DATABASE: ${UPTRACE_CH_DATABASE}
+
+      # Redis Connection (uses redis service from docker-compose.stag.infra.yml)
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # Site URL - Use load balancer URL or ingress
+      UPTRACE_SITE_URL: ${UPTRACE_SITE_URL:-http://172.16.212.26:14318}
+
+      # Admin User Creation
+      UPTRACE_ADMIN_EMAIL: ${UPTRACE_ADMIN_EMAIL}
+      UPTRACE_ADMIN_PASSWORD: ${UPTRACE_ADMIN_PASSWORD}
+    entrypoint: ["/bin/sh", "/entrypoint-custom.sh"]  # FIXED: Correct path
+    networks:
+      - stag_network
+    deploy:
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == manager
+        preferences:
+          - spread: node.id
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:443/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ======================
+  # CLICKHOUSE (Uptrace Storage) - Staging
+  # ======================
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    environment:
+      # SECURITY: All sensitive values come from .env file
+      CLICKHOUSE_DB: ${UPTRACE_CH_DATABASE:-uptrace}
+      CLICKHOUSE_USER: ${UPTRACE_CH_USER:-default}
+      CLICKHOUSE_PASSWORD: ${UPTRACE_CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_stag_data:/var/lib/clickhouse
+    networks:
+      - stag_network
+    deploy:
+      # For single-node or shared storage: replicas: 1
+      # For true HA cluster: Use ClickHouse cluster with ZooKeeper
+      replicas: 2  # CHANGED: Single instance (simpler) or configure cluster separately
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 30s
+        failure_action: rollback
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 180s
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ======================
+  # SWARM UPDATER - Auto-update Uptrace service
+  # ======================
+  swarm-updater:
+    image: docker:25-cli
+    # SECURITY: Read-only Docker socket mount
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # SECURITY: Add read-only filesystem and tmpfs for writable directories
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+      - /root/.docker
+    environment:
+      DOCKERHUB_USERNAME: ${DOCKERHUB_USERNAME}
+      DOCKERHUB_TOKEN: ${DOCKERHUB_TOKEN}
+    command: >
+      /bin/sh -c "
+      echo \"$$DOCKERHUB_TOKEN\" | docker login -u \"$$DOCKERHUB_USERNAME\" --password-stdin &&
+      echo '✅ Logado no Docker Hub' &&
+      while true; do
+        echo '🔄 Atualizando serviços...' &&
+        docker service update --with-registry-auth --image $${DOCKERHUB_USERNAME}/uptrace-tely:staging uptrace-tely-stag_uptrace 2>/dev/null || echo 'Erro ao atualizar uptrace' &&
+        echo '😴 Aguardando 5 minutos...' &&
+        sleep 300
+      done
+      "
+    networks:
+      - stag_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+volumes:
+  clickhouse_stag_data:
+    driver: local
+    # For multi-node HA, use shared storage:
+    # driver: nfs
+    # driver_opts:
+    #   share: "172.16.212.26:/data/clickhouse"
+    #   o: "addr=172.16.212.26,vers=4"
+
+networks:
+  stag_network:
+    external: true
+    name: stag_network
