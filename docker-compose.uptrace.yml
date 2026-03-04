@@ -15,9 +15,6 @@ services:
         published: 4317
         protocol: tcp
         mode: ingress
-    volumes:
-      - ./uptrace.yml.template:/etc/uptrace/config.yml.template:ro
-      - ./uptrace-entrypoint.sh:/entrypoint-custom.sh:ro
     depends_on:
      - clickhouse
     environment:
@@ -131,7 +128,8 @@ services:
       DOCKERHUB_TOKEN: ${DOCKERHUB_TOKEN}
     command: >
       /bin/sh -c "
-      echo \"$$DOCKERHUB_TOKEN\" | docker login -u \"$$DOCKERHUB_USERNAME\" --password-stdin &&
+      mkdir -p /root/.docker &&
+      echo \"$$DOCKERHUB_TOKEN\" | docker login -u \"$$DOCKERHUB_USERNAME\" --password-stdin 2>&1 | grep -v 'WARNING' || true &&
       echo '✅ Logado no Docker Hub' &&
       while true; do
         echo '🔄 Atualizando serviços...' &&
