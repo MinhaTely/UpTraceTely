@@ -15,36 +15,28 @@ services:
         published: 4317
         protocol: tcp
         mode: ingress
+    volumes:
+      - ./configs/uptrace.yml.template:/etc/uptrace/config.yml.template:ro  # ADDED
+      - ./scripts/uptrace-entrypoint.sh:/entrypoint-custom.sh:ro  # ADDED
     depends_on:
       clickhouse:
         condition: service_healthy
     environment:
-      # SECURITY: All sensitive values come from .env file
       UPTRACE_SECRET: ${UPTRACE_SECRET}
-
-      # PostgreSQL Connection (uses db service from docker-compose.stag.infra.yml)
       UPTRACE_PG_ADDR: ${UPTRACE_PG_ADDR}
       UPTRACE_PG_USER: ${UPTRACE_PG_USER}
       UPTRACE_PG_PASSWORD: ${UPTRACE_PG_PASSWORD}
       UPTRACE_PG_DATABASE: ${UPTRACE_PG_DATABASE}
-
-      # ClickHouse Connection
       UPTRACE_CH_ADDR: ${UPTRACE_CH_ADDR}
       UPTRACE_CH_USER: ${UPTRACE_CH_USER:-default}
       UPTRACE_CH_PASSWORD: ${UPTRACE_CLICKHOUSE_PASSWORD}
       UPTRACE_CH_DATABASE: ${UPTRACE_CH_DATABASE}
-
-      # Redis Connection (uses redis service from docker-compose.stag.infra.yml)
       REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-
-      # Site URL - Use load balancer URL or ingress
       UPTRACE_SITE_URL: ${UPTRACE_SITE_URL:-http://172.16.212.26:14318}
-
-      # Admin User Creation
       UPTRACE_ADMIN_EMAIL: ${UPTRACE_ADMIN_EMAIL}
       UPTRACE_ADMIN_PASSWORD: ${UPTRACE_ADMIN_PASSWORD}
-    entrypoint: ["/bin/sh", "/entrypoint-custom.sh"]  # FIXED: Correct path
+    entrypoint: ["/bin/sh", "/entrypoint-custom.sh"]
     networks:
       - stag_network
     deploy:
@@ -84,7 +76,6 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     environment:
-      # SECURITY: All sensitive values come from .env file
       CLICKHOUSE_DB: ${UPTRACE_CH_DATABASE:-uptrace}
       CLICKHOUSE_USER: ${UPTRACE_CH_USER:-default}
       CLICKHOUSE_PASSWORD: ${UPTRACE_CLICKHOUSE_PASSWORD}
@@ -94,12 +85,12 @@ services:
     networks:
       - stag_network
     deploy:
-      # For single-node or shared storage: replicas: 1
-      # For true HA cluster: Use ClickHouse cluster with ZooKeeper
-      replicas: 2  # CHANGED: Single instance (simpler) or configure cluster separately
+      replicas: 1  # FIXED: Changed from 2 (needs cluster for 2+)
       placement:
         constraints:
           - node.role == manager
+        preferences:
+          - spread: node.id  # ADDED: For future HA
       update_config:
         parallelism: 1
         delay: 30s
@@ -129,10 +120,8 @@ services:
   # ======================
   swarm-updater:
     image: docker:25-cli
-    # SECURITY: Read-only Docker socket mount
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    # SECURITY: Add read-only filesystem and tmpfs for writable directories
     read_only: true
     tmpfs:
       - /tmp
@@ -163,13 +152,8 @@ services:
 volumes:
   clickhouse_stag_data:
     driver: local
-    # For multi-node HA, use shared storage:
-    # driver: nfs
-    # driver_opts:
-    #   share: "172.16.212.26:/data/clickhouse"
-    #   o: "addr=172.16.212.26,vers=4"
 
 networks:
   stag_network:
     external: true
-    name: stag_network
+    name: tely-vendas-db-stag_stag_network  # FIXED: Match other stacks
